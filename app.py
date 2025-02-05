@@ -12,9 +12,11 @@ Dependencies:
   - transformers, torch  (for local model)
   
 Set your OpenAI API key in the environment variable OPENAI_API_KEY if using GPT‑3.5‑turbo.
+Ensure the Ollama CLI is installed and available on your PATH.
 """
 
 import os
+import subprocess  # <-- Used for invoking Ollama models.
 from flask import Flask, render_template_string, request, jsonify
 import openai
 
@@ -69,6 +71,59 @@ def chat_with_dialoGPT(conversation, prompt):
 def chat_with_dummy(conversation, prompt):
     """A dummy echo model."""
     return f"Dummy response to: {prompt}"
+
+# --- NEW: Define functions to call local LLMs via Ollama ---
+
+def chat_with_llama3_2(conversation, prompt):
+    """
+    Call your local LLM "llama3.2" via Ollama.
+    This function concatenates the conversation history into a single prompt.
+    Adjust the command-line arguments if your Ollama installation uses a different syntax.
+    """
+    # Combine the conversation history into one string.
+    combined_history = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation])
+    full_prompt = (combined_history + "\nuser: " + prompt) if combined_history else prompt
+
+    try:
+        # Run the Ollama CLI for model "llama3.2". Adjust the model name as needed.
+        result = subprocess.run(
+            ["ollama", "run", "llama3.2", full_prompt],
+            capture_output=True, text=True, check=True
+        )
+        reply = result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        reply = f"Error running llama3.2: {e.stderr}"
+    return reply
+
+def chat_with_deepseekr1_7b(conversation, prompt):
+    """
+    Call your local LLM "deepseekr1 7b" via Ollama.
+    This function concatenates the conversation history into a single prompt.
+    If the model name contains spaces, either adjust the naming or ensure proper quoting.
+    """
+    combined_history = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation])
+    full_prompt = (combined_history + "\nuser: " + prompt) if combined_history else prompt
+
+    try:
+        # Note: If your model name contains spaces, you might need to adjust how you pass it.
+        # Here we assume the command-line model name is "deepseekr1-7b" (using a hyphen instead).
+        result = subprocess.run(
+            ["ollama", "run", "deepseekr1-7b", full_prompt],
+            capture_output=True, text=True, check=True
+        )
+        reply = result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        reply = f"Error running deepseekr1 7b: {e.stderr}"
+    return reply
+
+# --- Mapping model names to handler functions ---
+MODEL_FUNCTIONS = {
+    "OpenAI GPT-3.5-turbo": chat_with_openai,
+    "DialoGPT": chat_with_dialoGPT,
+    "LLama3.2 (Ollama)": chat_with_llama3_2,
+    "Deepseekr1 7b (Ollama)": chat_with_deepseekr1_7b,
+    "Dummy": chat_with_dummy
+}
 
 # Mapping model names to handler functions.
 MODEL_FUNCTIONS = {
